@@ -194,7 +194,7 @@ SELECT
     SUM(CAST(st.quantity AS INT)) AS total_quantity,
     SUM(CAST(st.profit AS DECIMAL(18,2))) AS total_profit
 FROM raw.sales_transactions st
-JOIN raw.products p
+JOIN validated.products p
     ON st.product_id = p.product_id
 GROUP BY st.product_id, p.product_name
 ORDER BY total_sales DESC
