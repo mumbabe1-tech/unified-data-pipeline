@@ -127,6 +127,10 @@ print("Unexpected columns:", extra)
 # -------------------------------------------------------------
 # Value Range Profiling
 # -------------------------------------------------------------
+# In this section, we check the minimum and maximum values for
+# quantity, sales, and profit. This helps us confirm that the
+# numeric fields fall within expected business ranges and that
+# there are no extreme outliers or incorrect values.
 print("\n--- Value Range Profiling ---")
 
 print("\nQuantity Range:")
@@ -147,12 +151,62 @@ SELECT MIN(profit) AS min_profit, MAX(profit) AS max_profit
 FROM raw.sales_transactions;
 """).fetchdf())
 
+
+# -------------------------------------------------------------
+# Create Analytical Views (sales_summary & top_products)
+# -------------------------------------------------------------
+# After validating the raw and validated layers, we now create
+# two analytical SQL views. These views will be used for reporting
+# and analysis in later stages of the pipeline.
+#
+# 1. sales_summary  → aggregates daily sales metrics
+# 2. top_products   → identifies the highest‑performing products
+#
+# These views are created inside the 'analytics' schema so they
+# can be easily queried from BI tools or dashboards.
+print("\n--- Creating Analytical Views ---")
+
+# Ensure the analytics schema exists before creating views
+conn.execute("CREATE SCHEMA IF NOT EXISTS analytics;")
+
+# Create the daily sales summary view
+# Note: Using CAST because raw fields are currently stored as text (VARCHAR)
+conn.execute("""
+CREATE OR REPLACE VIEW analytics.sales_summary AS
+SELECT
+    CAST(order_date AS DATE) AS order_date,
+    SUM(CAST(quantity AS INT)) AS total_quantity,
+    SUM(CAST(sales AS DECIMAL(18,2))) AS total_sales,
+    SUM(CAST(profit AS DECIMAL(18,2))) AS total_profit
+FROM raw.sales_transactions
+GROUP BY order_date
+ORDER BY order_date;
+""")
+print("View created: analytics.sales_summary")
+
+# Create the top products view
+conn.execute("""
+CREATE OR REPLACE VIEW analytics.top_products AS
+SELECT
+    st.product_id,
+    p.product_name,
+    SUM(CAST(st.sales AS DECIMAL(18,2))) AS total_sales,
+    SUM(CAST(st.quantity AS INT)) AS total_quantity,
+    SUM(CAST(st.profit AS DECIMAL(18,2))) AS total_profit
+FROM raw.sales_transactions st
+JOIN raw.products p
+    ON st.product_id = p.product_id
+GROUP BY st.product_id, p.product_name
+ORDER BY total_sales DESC
+LIMIT 10;
+""")
+print("View created: analytics.top_products")
+
+
 # -------------------------------------------------------------
 # Close the connection
 # -------------------------------------------------------------
+# Once all validation checks and view creation steps are complete,
+# we safely close the connection to MotherDuck.
 conn.close()
 print("\nValidation complete. Connection closed.")
-
-
-
-
