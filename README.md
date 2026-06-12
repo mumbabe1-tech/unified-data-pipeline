@@ -47,3 +47,65 @@ The raw layer is clean
 The validated layer is aligned
 
 Downstream transformations can be built on reliable data
+
+
+# Full pipeline setup
+
+# Automated Data Ingestion and Analytics Pipeline
+
+## Pipeline Architecture (Medallion Pattern)
+
+[ Google Drive Source Files ]
+│
+▼ (Airbyte Sync: Full Refresh and Overwrite)
+┌────────────────────────────────────────────────────────┐
+│ BRONZE LAYER (raw schema)                              │
+│ ───                                                    │
+│  • Extracted rows stored entirely as VARCHAR strings    │
+│  • Includes raw audit tracks (_airbyte_raw_id)         │
+└────────────────────────┬───────────────────────────────┘
+│
+▼ (Data Validation and Layout Clean-up)
+┌────────────────────────────────────────────────────────┐
+│ SILVER LAYER (validated schema)                        │
+│ ───                                                    │
+│  • Cleaned product table with aligned identifiers      │
+│  • Referential constraint checking                     │
+└────────────────────────┬───────────────────────────────┘
+│
+▼ (Python Automation: Explicit Type Casting)
+┌────────────────────────────────────────────────────────┐
+│ GOLD LAYER (analytics schema)                          │
+│ ───                                                    │
+│  • analytics.sales_summary  ──► [Converted to DATE and DECIMAL]
+│  • analytics.top_products    ──► [Top 10 Performance View]
+└────────────────────────────────────────────────────────┘
+
+
+## Tools and Technologies Used
+* **Storage Source:** Google Drive (CSV file stores containing sales transactions, user listings, and inventory catalogs).
+* **Data Integration (ELT):** Airbyte Cloud (handles cloud extraction, schema tracking, and target loading syncs).
+* **Data Warehouse:** MotherDuck / DuckDB (handles cloud computation storage and rapid SQL processing).
+* **Pipeline Code and Automation:** Python 3 (executes schema validation queries, checks database integrity, and builds virtual views).
+
+## Core Production Data Dictionary
+
+### Table: raw.sales_transactions
+* `order_id` (VARCHAR): Unique order reference string (Primary Key).
+* `customer_id` (VARCHAR): Linked customer account identification key.
+* `product_id` (VARCHAR): Linked inventory catalogue item identification key.
+* `sales` (VARCHAR): Raw text representation of order revenue.
+* `quantity` (VARCHAR): Raw text representation of unit items shipped.
+
+### Generated Analytical View: analytics.top_products
+* `product_id` (VARCHAR): Validated inventory item reference.
+* `product_name` (VARCHAR): Clear display string pulled from the catalog layer.
+* `total_sales` (DECIMAL): Computed revenue tracking matching clean accounting decimal limits.
+* `total_quantity` (INTEGER): Clean whole-number sum of shipped merchandise.
+
+## Sample Production Queries
+
+### 1. View Schema Verification
+Ran this statement inside MotherDuck to verify that our Python automation script successfully created the metrics with their proper data types:
+```sql
+DESCRIBE analytics.top_products;
